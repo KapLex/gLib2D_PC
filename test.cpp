@@ -9,6 +9,7 @@ int main(void)
 	tex= g2dTexLoad("jtex.jpg",G2D_SWIZZLE);
 	while(1)
 	{
+		g2dClear(BLACK);
 		g2dBeginRects(tex); 
 	//	g2dSetCoordMode(G2D_DOWN_RIGHT);
 	//	g2dSetColor(WHITE);
