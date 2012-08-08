@@ -1,7 +1,7 @@
 /*
  * gLib2D - A simple, fast, light-weight 2D graphics library.
  *
- * Copyright 2012 Cl¨¦ment Gu¨¦rin <geecko.dev@free.fr>
+ * Copyright 2012 Clï¿½ï¿½ment Guï¿½ï¿½rin <geecko.dev@free.fr>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -143,7 +143,7 @@ void _g2dSetVertex( int i, float vx, float vy)
   // Texture
     if (rctx.tex != NULL)
 	{
-      glTexCoord2d(vx,vy);
+      		glTexCoord2d(vx*rctx.tex->w/rctx.tex->tw,vy*rctx.tex->h/rctx.tex->th);
 	}
 
   // Color
