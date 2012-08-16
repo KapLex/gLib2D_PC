@@ -143,7 +143,8 @@ void _g2dSetVertex( int i, float vx, float vy)
   // Texture
     if (rctx.tex != NULL)
 	{
-      		glTexCoord2d(vx*rctx.tex->w/rctx.tex->tw,vy*rctx.tex->h/rctx.tex->th);
+		glTexCoord2d((float)rctx.cur_obj.crop_x/rctx.tex->tw + (float)vx*OBJ_I.crop_w/rctx.tex->tw,
+			     (float)rctx.cur_obj.crop_y/rctx.tex->th + (float)vy*OBJ_I.crop_h/rctx.tex->th);
 	}
 
   // Color
