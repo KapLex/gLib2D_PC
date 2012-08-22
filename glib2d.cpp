@@ -137,38 +137,52 @@ void _g2dStart()
 }
 
 
-void _g2dSetVertex( int i, float vx, float vy)
+float* _g2dSetVertex(float *vp, int i, float vx, float vy)
 {
-    // Vertex order: [texture uv] [color] [coord]
-  // Texture
-    if (rctx.tex != NULL)
+   // Vertex order: [texture uv] [color] [coord]
+	if (rctx.tex != NULL)
 	{
-		glTexCoord2d((float)(OBJ_I.crop_x + vx*OBJ_I.crop_w)/rctx.tex->tw,
-		             (float)(OBJ_I.crop_y + vy*OBJ_I.crop_h)/rctx.tex->th);
+		vp[0] = (float)(OBJ_I.crop_x + vx*OBJ_I.crop_w)/rctx.tex->tw;
+		vp[1] = (float)(OBJ_I.crop_y + vy*OBJ_I.crop_h)/rctx.tex->th;
+	}
+	else
+	{
+		vp[0] = 0;
+		vp[1] = 0;
 	}
 
-  // Color
-	glColor4f(G2D_GET_R(OBJ_I.color)/255.,
-            G2D_GET_G(OBJ_I.color)/255.,
-            G2D_GET_B(OBJ_I.color)/255.,
-            G2D_GET_A(OBJ_I.color)/255.);
+	vp[2] = G2D_GET_R(OBJ_I.color)/255.;
+	vp[3] = G2D_GET_G(OBJ_I.color)/255.;
+	vp[4] = G2D_GET_B(OBJ_I.color)/255.;
+	vp[5] = G2D_GET_A(OBJ_I.color)/255.;
 
-  // Coord
-	float x = OBJ_I.x + (rctx.type == RECTS ? vx * OBJ_I.scale_w : 0.);
-	float y = OBJ_I.y + (rctx.type == RECTS ? vy * OBJ_I.scale_h : 0.);
-	float z = OBJ_I.z;
+	vp[6] = OBJ_I.x;
+	vp[7] = OBJ_I.y;
+	vp[8] = OBJ_I.z;
 
-  // Then apply the rotation
-	if (rctx.use_rot && rctx.type == RECTS)
+	if (rctx.type == RECTS)
 	{
-		float tx = x-OBJ_I.rot_x, ty = y-OBJ_I.rot_y;
-		x = OBJ_I.rot_x - OBJ_I.rot_sin*ty + OBJ_I.rot_cos*tx,
-		y = OBJ_I.rot_y + OBJ_I.rot_cos*ty + OBJ_I.rot_sin*tx;
+		vp[6] += vx * OBJ_I.scale_w;
+		vp[7] += vy * OBJ_I.scale_h;
+        
+		if (rctx.use_rot) // Apply a rotation
+		{
+			float tx = vp[6] - OBJ_I.rot_x;
+			float ty = vp[7] - OBJ_I.rot_y;
+
+			vp[6] = OBJ_I.rot_x - OBJ_I.rot_sin*ty + OBJ_I.rot_cos*tx, 
+			vp[7] = OBJ_I.rot_y + OBJ_I.rot_cos*ty + OBJ_I.rot_sin*tx;
+		}
 	}
 
-    glVertex3f(x,y,z);
+	if (rctx.use_int) // Pixel perfect
+	{
+		vp[6] = floorf(vp[6]);
+		vp[7] = floorf(vp[7]);
+	}
+
+	return (vp + 9);
 }
-
 
 
 
@@ -308,27 +322,45 @@ void g2dBeginPoints()
 }
 
 
+
 void _g2dEndRects()
 {
     // Define vertices properties
-   // if (obj_use_z && obj_use_blend) _g2dVertexSort();
+	int v_prim = GL_TRIANGLES;
+	int v_obj_nbr = 6;
+	int v_nbr = v_obj_nbr * rctx.n;
+	int v_size = 9*sizeof(float);
 
-	glBegin(GL_TRIANGLES);
+    // Allocate vertex list memory
+	float *v = (float*)malloc(v_nbr* v_size);
+	float *vi = v;
 
-  // Add each object
+	// Add each object	
 	int i;
 	for (i=0; i<rctx.n; i+=1)
 	{
-		_g2dSetVertex(i,0.,0.);
-		_g2dSetVertex(i,1.f,0.);
-		_g2dSetVertex(i,0.,1.f);
-		_g2dSetVertex(i,0.,1.f);
-		_g2dSetVertex(i,1.f,0.);
-		_g2dSetVertex(i,1.f,1.f);
+		vi = _g2dSetVertex(vi,i,0.f,0.f);
+		vi = _g2dSetVertex(vi,i,1.f,0.f);
+		vi = _g2dSetVertex(vi,i,0.f,1.f);
+		vi = _g2dSetVertex(vi,i,0.f,1.f);
+		vi = _g2dSetVertex(vi,i,1.f,0.f);
+		vi = _g2dSetVertex(vi,i,1.f,1.f);
 	}
 
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glEnableClientState(GL_COLOR_ARRAY);
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	glTexCoordPointer(2, GL_FLOAT, v_size, v);
+	glColorPointer(4, GL_FLOAT,v_size, v+2);  
+	glVertexPointer(3, GL_FLOAT, v_size, v+6);
+
 	 // Then put it in the display list.
-	glEnd();
+	glDrawArrays(v_prim, 0, v_nbr);
+
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
 
 }
 
@@ -336,69 +368,116 @@ void _g2dEndRects()
 void _g2dEndLines()
 {
     // Define vertices properties
-    glBegin(rctx.use_strip ? GL_LINE_STRIP : GL_LINES);
+	int v_prim = (rctx.use_strip ? GL_LINE_STRIP : GL_LINES);
+	int v_obj_nbr = (rctx.use_strip ? 1 : 2);
+	int v_nbr = v_obj_nbr * (rctx.use_strip ? rctx.n : rctx.n/2);
+	int v_size = 9*sizeof(float);
+	//
+	float *v = (float*)malloc(v_nbr * v_size);
+	float *vi = v;
 
   // Add each object
 	int i;
 	if (rctx.use_strip)
 	{
-		_g2dSetVertex(0,0.,0.);
+		vi = _g2dSetVertex(vi,0,0.,0.);
 		for (i=1; i<rctx.n; i+=1)
 		{
-			_g2dSetVertex(i,0.,0.);
+			vi = _g2dSetVertex(vi,i,0.,0.);
 		}
 	}
-    else
+	else
 	{
-      for (i=0; i+1<rctx.n; i+=2)
+	  for (i=0; i+1<rctx.n; i+=2)
 	  {
-        _g2dSetVertex(i  ,0.,0.);
-        _g2dSetVertex(i+1,0.,0.);
+		vi = _g2dSetVertex(vi,i  ,0.,0.);
+		vi = _g2dSetVertex(vi,i+1,0.,0.);
 	  }
 	}
 
-   // Then put it in the display list.
-   glEnd();
+	glEnableClientState(GL_COLOR_ARRAY);
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	glColorPointer(4, GL_FLOAT,v_size, v+2);  
+	glVertexPointer(3, GL_FLOAT, v_size, v+6);
+
+	 // Then put it in the display list.
+	glDrawArrays(v_prim, 0, v_nbr);
+
+	glDisableClientState(GL_COLOR_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 
 void _g2dEndQuads()
 {
-    // Define vertices properties
-    glBegin(GL_TRIANGLES);
+	// Define vertices properties
+	int v_prim = GL_TRIANGLES;
+	int v_obj_nbr = 6;						
+	int v_nbr = v_obj_nbr * (rctx.n / 4);	
+	int v_size = 9*sizeof(float);			
+	float *v = (float*)malloc(v_nbr*v_size);
+	float *vi = v;
 
-    // Add each object
+	// Add each object
 	int i;
 	for (i=0; i+3<rctx.n; i+=4)
 	{
-      _g2dSetVertex(i  ,0.,0.);
-	  _g2dSetVertex(i+1,1.f,0.);
-      _g2dSetVertex(i+3,0.,1.f);
-      _g2dSetVertex(i+3,0.,1.f);
-      _g2dSetVertex(i+1,1.f,0.);
-      _g2dSetVertex(i+2,1.f,1.f);
+	  vi = _g2dSetVertex(vi,i  ,0.f,0.f);
+	  vi = _g2dSetVertex(vi,i+1,1.f,0.f);
+	  vi = _g2dSetVertex(vi,i+3,0.f,1.f);
+	  vi = _g2dSetVertex(vi,i+3,0.f,1.f);
+	  vi = _g2dSetVertex(vi,i+1,1.f,0.f);
+	  vi = _g2dSetVertex(vi,i+2,1.f,1.f);
 	}
 
-    // Then put it in the display list.
-    glEnd();
+	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glEnableClientState(GL_COLOR_ARRAY);
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	glTexCoordPointer(2, GL_FLOAT, v_size, v);
+	glColorPointer(4, GL_FLOAT,v_size, v+2);  
+	glVertexPointer(3, GL_FLOAT, v_size, v+6);
+
+	 // Then put it in the display list.
+	glDrawArrays(v_prim, 0, v_nbr);
+
+	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 
 void _g2dEndPoints()
-{
-    // Define vertices properties
-    glBegin(GL_POINTS);
+{    
+	// Define vertices properties
+	int v_prim = GL_POINTS;
+	int v_obj_nbr = 1;
+	int v_nbr = v_obj_nbr * rctx.n;
+	int v_size = 9*sizeof(float);
 
-    // Add each object
-    int i;
-    for (i=0; i<rctx.n; i+=1)
-    {
-      _g2dSetVertex(i,0.,0.);
-    }
+	// Allocate vertex list memory
+	float *v = (float*)malloc(v_nbr*v_size);
+	float *vi = v;
+	int i;
 
-    // Then put it in the display list.
-    glEnd();
+	// Add each object
+	for (i=0; i<rctx.n; i+=1)
+	{
+		vi = _g2dSetVertex(vi,i,0.f,0.f);
+	}
 
+	glEnableClientState(GL_COLOR_ARRAY);
+	glEnableClientState(GL_VERTEX_ARRAY);
+
+	glColorPointer(4, GL_FLOAT,v_size, v+2);  
+	glVertexPointer(3, GL_FLOAT, v_size, v+6);
+
+	 // Then put it in the display list.
+	glDrawArrays(v_prim, 0, v_nbr);
+
+	glDisableClientState(GL_COLOR_ARRAY);
+	glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 
