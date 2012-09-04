@@ -56,46 +56,46 @@ typedef struct
 {
 	float x0,y0,s0,t0;
 	float x1,y1,s1,t1;
-}sth_quad;
+}Quad;
 
 typedef struct
 {
 	short x,y,h;
-}sth_row;
+}Row;
 
-typedef struct sth_texture
+typedef struct TextureAtlas
 {
 	// TODO: replace rows with pointer
-	sth_row rows[MAX_ROWS];
+	Row rows[MAX_ROWS];
 	int nrows;
 	g2dTexture * tex;
-	sth_texture* next;
-}sth_texture;
+	TextureAtlas* next;
+}TextureAtlas;
 
-typedef struct sth_glyph
+typedef struct Glyph
 {
 	unsigned int codepoint;
 	short size;
-	sth_texture* texture;
+	TextureAtlas* texture;
 	int x0,y0,x1,y1;
 	float xadv,xoff,yoff;
 	int next;
-}sth_glyph;
+}Glyph;
 
-typedef struct sth_font
+typedef struct g2dFont
 {
 	int idx;
 	int type;
 	stbtt_fontinfo font;
 	unsigned char* data;
-	sth_glyph* glyphs;
+	Glyph* glyphs;
 	int lut[HASH_LUT_SIZE];
 	int nglyphs;
 	float ascender;
 	float descender;
 	float lineh;
-	sth_font* next;
-}sth_font;
+	g2dFont* next;
+}g2dFont;
 
 
 
@@ -103,10 +103,10 @@ typedef struct
 {
 	int tw,th;
 	float itw,ith;
-	sth_texture* textures;
-	sth_font* fonts;
+	TextureAtlas* textures;
+	g2dFont* fonts;
 	int drawing;
-}sth_stash;
+}g2dStash;
 
 
 
@@ -145,21 +145,21 @@ static unsigned int decutf8(unsigned int* state, unsigned int* codep, unsigned i
 
 
 
-sth_stash* sth_create(int cachew, int cacheh)
+g2dStash* g2dStashCreate(int cachew, int cacheh)
 {
-	sth_stash* stash = NULL;
-	sth_texture* texture = NULL;
+	g2dStash* stash = NULL;
+	TextureAtlas* texture = NULL;
 
 	// Allocate memory for the font stash.
-	stash = (sth_stash*)malloc(sizeof(sth_stash));
+	stash = (g2dStash*)malloc(sizeof(g2dStash));
 	if (stash == NULL) goto error;
-	memset(stash,0,sizeof(sth_stash));
+	memset(stash,0,sizeof(g2dStash));
 
 	// Allocate memory for the first texture
-	texture = (sth_texture*)malloc(sizeof(sth_texture));
+	texture = (TextureAtlas*)malloc(sizeof(TextureAtlas));
 
 	if (texture == NULL) goto error;
-	memset(texture,0,sizeof(sth_texture));
+	memset(texture,0,sizeof(TextureAtlas));
 
 	texture->tex = g2dTexCreate(cachew, cachew);
 
@@ -185,14 +185,14 @@ error:
 	return NULL;
 }
 
-int sth_add_font_from_memory(sth_stash* stash, unsigned char* buffer)
+int g2dAddFontFromMemory(g2dStash* stash, unsigned char* buffer)
 {
 	int i, ascent, descent, fh, lineGap;
-	sth_font* fnt = NULL;
+	g2dFont* fnt = NULL;
 
-	fnt = (sth_font*)malloc(sizeof(sth_font));
+	fnt = (g2dFont*)malloc(sizeof(g2dFont));
 	if (fnt == NULL) goto error;
-	memset(fnt,0,sizeof(sth_font));
+	memset(fnt,0,sizeof(g2dFont));
 
 	// Init hash lookup.
 	for (i = 0; i < HASH_LUT_SIZE; ++i) fnt->lut[i] = -1;
@@ -225,7 +225,7 @@ error:
 	return 0;
 }
 
-int sth_add_font(sth_stash* stash, const char* path)
+int g2dAddFont(g2dStash* stash, const char* path)
 {
 	FILE* fp = 0;
 	int datasize;
@@ -244,7 +244,7 @@ int sth_add_font(sth_stash* stash, const char* path)
 	fclose(fp);
 	fp = 0;
 	
-	idx = sth_add_font_from_memory(stash, data);
+	idx = g2dAddFontFromMemory(stash, data);
 	// Modify type of the loaded font.
 	if (idx)
 		stash->fonts->type = TTFONT_FILE;
@@ -259,14 +259,14 @@ error:
 	return 0;
 }
 
-int sth_add_bitmap_font(sth_stash* stash, int ascent, int descent, int line_gap)
+int g2dAddBitmapFont(g2dStash* stash, int ascent, int descent, int line_gap)
 {
 	int i, fh;
-	sth_font* fnt = NULL;
+	g2dFont* fnt = NULL;
 
-	fnt = (sth_font*)malloc(sizeof(sth_font));
+	fnt = (g2dFont*)malloc(sizeof(g2dFont));
 	if (fnt == NULL) goto error;
-	memset(fnt,0,sizeof(sth_font));
+	memset(fnt,0,sizeof(g2dFont));
 
 	// Init hash lookup.
 	for (i = 0; i < HASH_LUT_SIZE; ++i) fnt->lut[i] = -1;
@@ -290,7 +290,7 @@ error:
 	return 0;
 }
 
-void sth_add_glyph(sth_stash* stash,
+void g2dAddGlyph(g2dStash* stash,
                   int idx,
                   GLuint id,
                   const char* s,
@@ -298,9 +298,9 @@ void sth_add_glyph(sth_stash* stash,
                   int x, int y, int w, int h,
                   float xoffset, float yoffset, float xadvance)
 {
-	sth_texture* texture = NULL;
-	sth_font* fnt = NULL;
-	sth_glyph* glyph = NULL;
+	TextureAtlas* texture = NULL;
+	g2dFont* fnt = NULL;
+	Glyph* glyph = NULL;
 	unsigned int codepoint;
 	unsigned int state = 0;
 
@@ -310,9 +310,9 @@ void sth_add_glyph(sth_stash* stash,
 	if (texture == NULL)
 	{
 		// Create new texture
-		texture = (sth_texture*)malloc(sizeof(sth_texture));
+		texture = (TextureAtlas*)malloc(sizeof(TextureAtlas));
 		if (texture == NULL) return;
-		memset(texture, 0, sizeof(sth_texture));
+		memset(texture, 0, sizeof(TextureAtlas));
 		texture->tex = g2dTexCreate(stash->tw,stash->th);
 		texture->tex->id = id;
 		texture->next = stash->textures;
@@ -332,12 +332,12 @@ void sth_add_glyph(sth_stash* stash,
 
 	// Alloc space for new glyph.
 	fnt->nglyphs++;
-	fnt->glyphs = (sth_glyph *)realloc(fnt->glyphs, fnt->nglyphs*sizeof(sth_glyph));
+	fnt->glyphs = (Glyph *)realloc(fnt->glyphs, fnt->nglyphs*sizeof(Glyph));
 	if (!fnt->glyphs) return;
 
 	// Init glyph.
 	glyph = &fnt->glyphs[fnt->nglyphs-1];
-	memset(glyph, 0, sizeof(sth_glyph));
+	memset(glyph, 0, sizeof(Glyph));
 	glyph->codepoint = codepoint;
 	glyph->size = size;
 	glyph->texture = texture;
@@ -356,17 +356,17 @@ void sth_add_glyph(sth_stash* stash,
 	fnt->lut[h] = fnt->nglyphs-1;
 }
 
-static sth_glyph* get_glyph(sth_stash* stash, sth_font* fnt, unsigned int codepoint, short isize)
+static Glyph* get_glyph(g2dStash* stash, g2dFont* fnt, unsigned int codepoint, short isize)
 {
 	int i,g,advance,lsb,x0,y0,x1,y1,gw,gh;
 	float scale;
-	sth_texture* texture = NULL;
-	sth_glyph* glyph = NULL;
+	TextureAtlas* texture = NULL;
+	Glyph* glyph = NULL;
 	unsigned char* bmp = NULL;
 	unsigned int h;
 	float size = isize/10.0f;
 	int rh;
-	sth_row* br = NULL;
+	Row* br = NULL;
 
 	// Find code point and size.
 	h = hashint(codepoint) & (HASH_LUT_SIZE-1);
@@ -426,11 +426,11 @@ static sth_glyph* get_glyph(sth_stash* stash, sth_font* fnt, unsigned int codepo
 					else
 					{
 						// Create new texture
-						texture->next = (sth_texture*)malloc(sizeof(sth_texture));
+						texture->next = (TextureAtlas*)malloc(sizeof(TextureAtlas));
 						texture = texture->next;
 						texture->tex = g2dTexCreate(stash->tw,stash->th);
 						if (texture == NULL) goto error;
-						memset(texture,0,sizeof(sth_texture));
+						memset(texture,0,sizeof(TextureAtlas));
 						glGenTextures(1, &texture->tex->id);
 						if (!texture->tex->id) goto error;
 						glBindTexture(GL_TEXTURE_2D, texture->tex->id);
@@ -451,12 +451,12 @@ static sth_glyph* get_glyph(sth_stash* stash, sth_font* fnt, unsigned int codepo
 	
 	// Alloc space for new glyph.
 	fnt->nglyphs++;
-	fnt->glyphs = (sth_glyph *)realloc(fnt->glyphs, fnt->nglyphs*sizeof(sth_glyph));
+	fnt->glyphs = (Glyph *)realloc(fnt->glyphs, fnt->nglyphs*sizeof(Glyph));
 	if (!fnt->glyphs) return 0;
 
 	// Init glyph.
 	glyph = &fnt->glyphs[fnt->nglyphs-1];
-	memset(glyph, 0, sizeof(sth_glyph));
+	memset(glyph, 0, sizeof(Glyph));
 	glyph->codepoint = codepoint;
 	glyph->size = isize;
 	glyph->texture = texture;
@@ -496,7 +496,7 @@ error:
 	return 0;
 }
 
-static int get_quad(sth_stash* stash, sth_font* fnt, sth_glyph* glyph, short isize, float* x, float* y, sth_quad* q)
+static int get_quad(g2dStash* stash, g2dFont* fnt, Glyph* glyph, short isize, float* x, float* y, Quad* q)
 {
 	int rx,ry;
 	float scale = 1.0f;
@@ -524,17 +524,17 @@ static int get_quad(sth_stash* stash, sth_font* fnt, sth_glyph* glyph, short isi
 
 
 
-void sth_draw_text(sth_stash* stash,
+void g2dDrawText(g2dStash* stash,
 				   int idx, float size,
 				   float x, float y,
 				   const char* s)
 {
 	unsigned int codepoint;
-	sth_glyph* glyph = NULL;
-	sth_texture* texture = NULL;
+	Glyph* glyph = NULL;
+	TextureAtlas* texture = NULL;
 	unsigned int state = 0;
 	short isize = (short)(size*10.0f);
-	sth_font* fnt = NULL;
+	g2dFont* fnt = NULL;
 	
 	float scale = 1.0;
 
@@ -569,17 +569,17 @@ void sth_draw_text(sth_stash* stash,
 
 }
 
-void sth_dim_text(sth_stash* stash,
+void g2dDimText(g2dStash* stash,
 				  int idx, float size,
 				  const char* s,
 				  float* minx, float* miny, float* maxx, float* maxy)
 {
 	unsigned int codepoint;
-	sth_glyph* glyph = NULL;
+	Glyph* glyph = NULL;
 	unsigned int state = 0;
-	sth_quad q;
+	Quad q;
 	short isize = (short)(size*10.0f);
-	sth_font* fnt = NULL;
+	g2dFont* fnt = NULL;
 	float x = 0, y = 0;
 	
 	if (stash == NULL) return;
@@ -605,11 +605,11 @@ void sth_dim_text(sth_stash* stash,
 	}
 }
 
-void sth_vmetrics(sth_stash* stash,
+void g2dVmetrics(g2dStash* stash,
 				  int idx, float size,
 				  float* ascender, float* descender, float* lineh)
 {
-	sth_font* fnt = NULL;
+	g2dFont* fnt = NULL;
 
 	if (stash == NULL) return;
 	if (!stash->textures || !stash->textures->tex->id) return;
@@ -625,12 +625,12 @@ void sth_vmetrics(sth_stash* stash,
 		*lineh = fnt->lineh*size;
 }
 
-void sth_delete(sth_stash* stash)
+void g2dStashDelete(g2dStash* stash)
 {
-	sth_texture* texture = NULL;
-	sth_texture* curtex = NULL;
-	sth_font* fnt = NULL;
-	sth_font* curfnt = NULL;
+	TextureAtlas* texture = NULL;
+	TextureAtlas* curtex = NULL;
+	g2dFont* fnt = NULL;
+	g2dFont* curfnt = NULL;
 
 	if (!stash) return;
 

@@ -20,28 +20,29 @@
 #ifndef FONTSTASH_H
 #define FONTSTASH_H
 
-struct sth_stash* sth_create(int cachew, int cacheh);
+struct g2dStash* g2dStashCreate(int cachew, int cacheh);
 
-int sth_add_font(struct sth_stash* stash, const char* path);
-int sth_add_font_from_memory(struct sth_stash* stash, unsigned char* buffer);
 
-int sth_add_bitmap_font(struct sth_stash* stash, int ascent, int descent, int line_gap);
-int sth_add_glyph(struct sth_stash* stash, int idx, unsigned int id, const char* s,
+int g2dAddFont(struct g2dStash* stash, const char* path);
+int g2dAddFontFromMemory(struct g2dStash* stash, unsigned char* buffer);
+
+int g2dAddBitmapFont(struct g2dStash* stash, int ascent, int descent, int line_gap);
+int g2dAddGlyph(struct g2dStash* stash, int idx, unsigned int id, const char* s,
                   short size, short base, int x, int y, int w, int h,
                   float xoffset, float yoffset, float xadvance);
 
 
-void sth_draw_text(struct sth_stash* stash,
+void g2dDrawText(struct g2dStash* stash,
 				   int idx, float size,
 				   float x, float y, const char* string);
 
-void sth_dim_text(struct sth_stash* stash, int idx, float size, const char* string,
+void g2dDimText(struct g2dStash* stash, int idx, float size, const char* string,
 				  float* minx, float* miny, float* maxx, float* maxy);
 
-void sth_vmetrics(struct sth_stash* stash,
+void g2dVmetrics(struct g2dStash* stash,
 				  int idx, float size,
 				  float* ascender, float* descender, float * lineh);
 
-void sth_delete(struct sth_stash* stash);
+void g2dStashDelete(struct g2dStash* stash);
 
 #endif // FONTSTASH_H

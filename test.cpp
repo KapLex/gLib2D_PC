@@ -6,10 +6,10 @@ int main(void)
 {
 	g2dInit();
 	g2dTexture* tex= g2dTexLoad("pic.png",G2D_SWIZZLE);
-	sth_stash* stash = sth_create(512, 512);
+	g2dStash* stash = g2dStashCreate(512, 512);
 
 	/* load truetype font */
-	int droid = sth_add_font(stash, "simfang.ttf");
+	int droid = g2dAddFont(stash, "simfang.ttf");
 	/* position of the text */
 	float x = 10, y = 10;
 
@@ -35,7 +35,7 @@ int main(void)
 
 	//font rendering
 	/* position: (x, y); font size: 24 */
-	sth_draw_text(stash, droid, 24.0f, 10, 0, "ACDEFGHIJKLMN");
+	g2dDrawText(stash, droid, 24.0f, 10, 0, "ACDEFGHIJKLMN");
 
 			
 	g2dFlip(G2D_VSYNC);		
